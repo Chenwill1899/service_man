@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import base64
 import hmac
 import json
 import os
@@ -18,10 +17,12 @@ from urllib.parse import parse_qs, urlparse
 BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = BASE_DIR / "server_usage.db"
 INDEX_PATH = BASE_DIR / "index.html"
+LOGIN_PATH = BASE_DIR / "login.html"
 INPUT_DATETIME_FORMAT = "%Y-%m-%dT%H:%M"
 DISPLAY_DATETIME_FORMAT = "%Y-%m-%d %H:%M"
 AUTH_USER = os.getenv("APP_AUTH_USER", "ausim")
-AUTH_PASSWORD = os.getenv("APP_AUTH_PASS", "ausim214")
+SESSION_COOKIE = "server_usage_session"
+SESSION_SECRET = os.getenv("APP_SESSION_SECRET", "server-usage-secret")
 REVIEW_USER = "ausim"
 REVIEW_PASSWORD = "ausim666"
 
@@ -442,13 +443,27 @@ class AppHandler(BaseHTTPRequestHandler):
     server_version = "ServerUsage/1.0"
 
     def do_GET(self) -> None:
-        if not self.ensure_authenticated():
-            return
         parsed = urlparse(self.path)
         if parsed.path == "/":
+            if self.is_authenticated():
+                self.redirect("/app")
+            else:
+                self.redirect("/login")
+            return
+        if parsed.path == "/login":
+            if self.is_authenticated():
+                self.redirect("/app")
+            else:
+                self.serve_login()
+            return
+        if parsed.path == "/app":
+            if not self.ensure_authenticated():
+                return
             self.serve_index()
             return
         if parsed.path == "/api/usages/export.txt":
+            if not self.ensure_authenticated():
+                return
             with closing(get_conn()) as conn:
                 body = build_usage_export_text(conn).encode("utf-8")
             filename = f"usage-records-{datetime.now().strftime('%Y%m%d-%H%M%S')}.txt"
@@ -460,10 +475,14 @@ class AppHandler(BaseHTTPRequestHandler):
             self.wfile.write(body)
             return
         if parsed.path == "/api/dashboard":
+            if not self.ensure_authenticated():
+                return
             with closing(get_conn()) as conn:
                 self.write_json(HTTPStatus.OK, dashboard_payload(conn))
             return
         if parsed.path == "/api/servers":
+            if not self.ensure_authenticated():
+                return
             with closing(get_conn()) as conn:
                 data = [
                     {
@@ -477,6 +496,8 @@ class AppHandler(BaseHTTPRequestHandler):
                 self.write_json(HTTPStatus.OK, {"servers": data})
             return
         if parsed.path == "/api/usages":
+            if not self.ensure_authenticated():
+                return
             status_filter = parse_qs(parsed.query).get("status", ["all"])[0]
             with closing(get_conn()) as conn:
                 rows = conn.execute(
@@ -500,6 +521,8 @@ class AppHandler(BaseHTTPRequestHandler):
                 self.write_json(HTTPStatus.OK, {"records": records})
             return
         if parsed.path.startswith("/api/usages/"):
+            if not self.ensure_authenticated():
+                return
             record_id = self.extract_id(parsed.path)
             if record_id is None:
                 self.write_error_json(HTTPStatus.NOT_FOUND, "记录不存在")
@@ -514,10 +537,31 @@ class AppHandler(BaseHTTPRequestHandler):
         self.write_error_json(HTTPStatus.NOT_FOUND, "路径不存在")
 
     def do_POST(self) -> None:
-        if not self.ensure_authenticated():
-            return
         parsed = urlparse(self.path)
+        if parsed.path == "/api/login":
+            payload = self.read_json_body()
+            if payload is None:
+                return
+            username = str(payload.get("username", "")).strip()
+            if not hmac.compare_digest(username, AUTH_USER):
+                self.write_error_json(HTTPStatus.FORBIDDEN, "账号不存在或无权访问")
+                return
+            self.write_json(
+                HTTPStatus.OK,
+                {"message": "登录成功", "redirect_to": "/app"},
+                cookie=self.build_session_cookie(username),
+            )
+            return
+        if parsed.path == "/api/logout":
+            self.write_json(
+                HTTPStatus.OK,
+                {"message": "已退出登录", "redirect_to": "/login"},
+                cookie=self.clear_session_cookie(),
+            )
+            return
         if parsed.path == "/api/usages":
+            if not self.ensure_authenticated():
+                return
             payload = self.read_json_body()
             if payload is None:
                 return
@@ -558,6 +602,8 @@ class AppHandler(BaseHTTPRequestHandler):
             return
 
         if parsed.path.startswith("/api/usages/") and parsed.path.endswith("/approve"):
+            if not self.ensure_authenticated():
+                return
             record_id = self.extract_id(parsed.path.removesuffix("/approve"))
             if record_id is None:
                 self.write_error_json(HTTPStatus.NOT_FOUND, "记录不存在")
@@ -604,6 +650,8 @@ class AppHandler(BaseHTTPRequestHandler):
             return
 
         if parsed.path.startswith("/api/usages/") and parsed.path.endswith("/complete"):
+            if not self.ensure_authenticated():
+                return
             record_id = self.extract_id(parsed.path.removesuffix("/complete"))
             if record_id is None:
                 self.write_error_json(HTTPStatus.NOT_FOUND, "记录不存在")
@@ -727,6 +775,17 @@ class AppHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(content)
 
+    def serve_login(self) -> None:
+        if not LOGIN_PATH.exists():
+            self.write_error_json(HTTPStatus.NOT_FOUND, "登录页不存在")
+            return
+        content = LOGIN_PATH.read_bytes()
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(content)))
+        self.end_headers()
+        self.wfile.write(content)
+
     def read_json_body(self, optional: bool = False) -> dict | None:
         length = int(self.headers.get("Content-Length", "0"))
         if length == 0:
@@ -741,9 +800,11 @@ class AppHandler(BaseHTTPRequestHandler):
             self.write_error_json(HTTPStatus.BAD_REQUEST, "请求体必须是 JSON")
             return None
 
-    def write_json(self, status: HTTPStatus, payload: dict) -> None:
+    def write_json(self, status: HTTPStatus, payload: dict, cookie: str | None = None) -> None:
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
+        if cookie:
+            self.send_header("Set-Cookie", cookie)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
@@ -753,39 +814,60 @@ class AppHandler(BaseHTTPRequestHandler):
         self.write_json(status, {"error": message})
 
     def ensure_authenticated(self) -> bool:
-        auth_header = self.headers.get("Authorization", "")
-        if not auth_header.startswith("Basic "):
-            self.write_auth_required()
-            return False
-
-        token = auth_header[6:].strip()
-        try:
-            decoded = base64.b64decode(token).decode("utf-8")
-        except (ValueError, UnicodeDecodeError):
-            self.write_auth_required()
-            return False
-
-        username, sep, password = decoded.partition(":")
-        if sep != ":":
-            self.write_auth_required()
-            return False
-
-        if not (
-            hmac.compare_digest(username, AUTH_USER)
-            and hmac.compare_digest(password, AUTH_PASSWORD)
-        ):
+        if not self.is_authenticated():
             self.write_auth_required()
             return False
         return True
 
+    def is_authenticated(self) -> bool:
+        session_value = self.get_cookie_value(SESSION_COOKIE)
+        if not session_value:
+            return False
+        username, sep, signature = session_value.partition(".")
+        if sep != "." or not username or not signature:
+            return False
+        expected = hmac.new(
+            SESSION_SECRET.encode("utf-8"),
+            username.encode("utf-8"),
+            "sha256",
+        ).hexdigest()
+        return hmac.compare_digest(username, AUTH_USER) and hmac.compare_digest(signature, expected)
+
     def write_auth_required(self) -> None:
         body = json.dumps({"error": "未授权，请先登录"}, ensure_ascii=False).encode("utf-8")
         self.send_response(HTTPStatus.UNAUTHORIZED)
-        self.send_header("WWW-Authenticate", 'Basic realm="ServerUsage"')
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+
+    def build_session_cookie(self, username: str) -> str:
+        signature = hmac.new(
+            SESSION_SECRET.encode("utf-8"),
+            username.encode("utf-8"),
+            "sha256",
+        ).hexdigest()
+        return (
+            f"{SESSION_COOKIE}={username}.{signature}; Path=/; HttpOnly; SameSite=Lax; Max-Age=43200"
+        )
+
+    def clear_session_cookie(self) -> str:
+        return f"{SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0"
+
+    def get_cookie_value(self, key: str) -> str | None:
+        raw_cookie = self.headers.get("Cookie", "")
+        if not raw_cookie:
+            return None
+        for part in raw_cookie.split(";"):
+            name, _, value = part.strip().partition("=")
+            if name == key:
+                return value or None
+        return None
+
+    def redirect(self, location: str) -> None:
+        self.send_response(HTTPStatus.FOUND)
+        self.send_header("Location", location)
+        self.end_headers()
 
     def extract_id(self, path: str) -> int | None:
         tail = path.rstrip("/").split("/")[-1]
@@ -811,7 +893,7 @@ def main() -> None:
         except OSError:
             display_host = "<your-lan-ip>"
     print(f"Server usage app running at http://{display_host}:{port}")
-    print(f"Basic Auth user: {AUTH_USER}")
+    print(f"Login user: {AUTH_USER}")
     try:
         server.serve_forever()
     except KeyboardInterrupt:

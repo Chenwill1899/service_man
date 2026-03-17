@@ -165,6 +165,11 @@
       line-height: 1.5;
     }
 
+    .stamp button {
+      width: 100%;
+      margin-top: 12px;
+    }
+
     .metrics,
     .server-grid,
     .workspace {
@@ -585,6 +590,7 @@
           <span id="summary-updated">更新时间：加载中</span>
           <span id="summary-active">当前任务：0 条</span>
           <span id="summary-utilization">综合占用：0%</span>
+          <button class="secondary" type="button" id="logout-button">退出登录</button>
         </aside>
       </div>
       <div class="metrics">
@@ -755,6 +761,7 @@
       cancelEditButton: document.getElementById("cancel-edit-button"),
       refreshButton: document.getElementById("refresh-button"),
       downloadTxtButton: document.getElementById("download-txt-button"),
+      logoutButton: document.getElementById("logout-button"),
       formMessage: document.getElementById("form-message"),
       recordId: document.getElementById("record-id"),
       serverId: document.getElementById("server-id"),
@@ -801,13 +808,21 @@
     }
 
     async function api(path, options = {}) {
+      const headers = new Headers(options.headers || {});
+      if (!headers.has("Content-Type") && options.body !== undefined) {
+        headers.set("Content-Type", "application/json");
+      }
+
       const response = await fetch(path, {
-        headers: {
-          "Content-Type": "application/json"
-        },
-        ...options
+        ...options,
+        headers
       });
-      const data = await response.json();
+
+      const data = await response.json().catch(() => ({}));
+      if (response.status === 401) {
+        window.location.href = "/login";
+        throw new Error("登录状态已失效，请重新登录");
+      }
       if (!response.ok) {
         throw new Error(data.error || "请求失败");
       }
@@ -1252,6 +1267,20 @@
     elements.form.addEventListener("submit", submitForm);
     elements.cancelEditButton.addEventListener("click", resetForm);
     elements.refreshButton.addEventListener("click", () => loadDashboard(true));
+    elements.logoutButton.addEventListener("click", async () => {
+      try {
+        await api("/api/logout", {
+          method: "POST",
+          body: JSON.stringify({})
+        });
+      } catch (error) {
+        if (error.message !== "登录状态已失效，请重新登录") {
+          setFormMessage(error.message, "error");
+          return;
+        }
+      }
+      window.location.href = "/login";
+    });
     elements.downloadTxtButton.addEventListener("click", () => {
       window.location.href = "/api/usages/export.txt";
     });
