@@ -1,0 +1,1266 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>服务器使用维护</title>
+  <style>
+    :root {
+      --bg: #f4f2ea;
+      --paper: rgba(255, 251, 245, 0.9);
+      --panel: rgba(255, 253, 248, 0.92);
+      --line: rgba(100, 79, 51, 0.16);
+      --text: #2d2418;
+      --muted: #76644d;
+      --accent: #1e6b5c;
+      --accent-strong: #0f4d42;
+      --warn: #d48a22;
+      --danger: #bf4b45;
+      --ok: #4a7c59;
+      --shadow: 0 18px 50px rgba(58, 41, 14, 0.12);
+      --radius-xl: 28px;
+      --radius-lg: 20px;
+      --radius-md: 14px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Avenir Next", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(30, 107, 92, 0.15), transparent 30%),
+        radial-gradient(circle at top right, rgba(212, 138, 34, 0.14), transparent 24%),
+        linear-gradient(180deg, #f8f6f0 0%, #f1ede4 100%);
+      min-height: 100vh;
+    }
+
+    button,
+    input,
+    select,
+    textarea {
+      font: inherit;
+    }
+
+    .shell {
+      width: min(1240px, calc(100% - 32px));
+      margin: 24px auto 40px;
+    }
+
+    .hero,
+    .panel,
+    .server-card,
+    .metric-card {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(8px);
+    }
+
+    .hero {
+      padding: 28px;
+      border-radius: var(--radius-xl);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero::after {
+      content: "";
+      position: absolute;
+      width: 260px;
+      height: 260px;
+      right: -40px;
+      bottom: -80px;
+      border-radius: 999px;
+      background: radial-gradient(circle, rgba(30, 107, 92, 0.16), transparent 70%);
+      pointer-events: none;
+    }
+
+    .hero-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      align-items: flex-start;
+      margin-bottom: 22px;
+    }
+
+    .eyebrow {
+      margin: 0 0 10px;
+      color: var(--accent-strong);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(2.1rem, 4vw, 3.8rem);
+      line-height: 1;
+      letter-spacing: -0.04em;
+    }
+
+    .hero p {
+      margin: 14px 0 0;
+      max-width: 760px;
+      color: var(--muted);
+      font-size: 1rem;
+      line-height: 1.65;
+    }
+
+    .usage-guide {
+      margin: 14px 0 0;
+      max-width: 760px;
+      border: 1px solid rgba(30, 107, 92, 0.2);
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.75);
+      overflow: hidden;
+    }
+
+    .usage-guide summary {
+      list-style: none;
+      cursor: pointer;
+      padding: 12px 14px;
+      font-weight: 700;
+      color: var(--accent-strong);
+      background: rgba(30, 107, 92, 0.08);
+    }
+
+    .usage-guide summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .usage-guide ol {
+      margin: 0;
+      padding: 12px 18px 14px 34px;
+      color: var(--muted);
+      line-height: 1.7;
+      font-size: 0.95rem;
+    }
+
+    .stamp {
+      min-width: 200px;
+      padding: 16px;
+      border-radius: 18px;
+      border: 1px solid rgba(30, 107, 92, 0.16);
+      background: rgba(255, 255, 255, 0.62);
+    }
+
+    .stamp strong,
+    .stamp span {
+      display: block;
+    }
+
+    .stamp strong {
+      margin-bottom: 8px;
+    }
+
+    .stamp span {
+      color: var(--muted);
+      font-size: 0.92rem;
+      line-height: 1.5;
+    }
+
+    .metrics,
+    .server-grid,
+    .workspace {
+      display: grid;
+      gap: 16px;
+    }
+
+    .metrics {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .metric-card,
+    .panel,
+    .server-card {
+      padding: 20px;
+    }
+
+    .metric-label {
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+
+    .metric-value {
+      margin-top: 10px;
+      font-size: 2rem;
+      font-weight: 800;
+      letter-spacing: -0.04em;
+    }
+
+    .metric-note {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+
+    .section {
+      margin-top: 22px;
+    }
+
+    .section-heading {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .section-heading h2 {
+      margin: 0;
+      font-size: 1.25rem;
+      letter-spacing: -0.03em;
+    }
+
+    .section-heading p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .server-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .workspace {
+      grid-template-columns: 1.1fr 1.4fr;
+      align-items: start;
+    }
+
+    .server-head,
+    .record-head,
+    .toolbar,
+    .button-row,
+    .inline-actions {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .server-head {
+      align-items: flex-start;
+      margin-bottom: 16px;
+    }
+
+    .server-head h3,
+    .record-head h3 {
+      margin: 0;
+    }
+
+    .server-head p,
+    .record-head p,
+    .subtle {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .badge,
+    .status-pill {
+      display: inline-block;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      padding: 7px 10px;
+      white-space: nowrap;
+    }
+
+    .badge-ok,
+    .running {
+      color: var(--ok);
+      background: rgba(74, 124, 89, 0.12);
+    }
+
+    .badge-warn,
+    .ending {
+      color: var(--warn);
+      background: rgba(212, 138, 34, 0.14);
+    }
+
+    .badge-danger,
+    .overtime {
+      color: var(--danger);
+      background: rgba(191, 75, 69, 0.12);
+    }
+
+    .completed {
+      color: var(--accent-strong);
+      background: rgba(30, 107, 92, 0.12);
+    }
+
+    .gpu-track {
+      display: grid;
+      grid-template-columns: repeat(var(--gpu-count), minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .gpu-slot,
+    .meta-box,
+    .record-card,
+    .table-card {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.78);
+    }
+
+    .gpu-slot {
+      min-height: 92px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .gpu-slot strong {
+      font-size: 0.9rem;
+    }
+
+    .gpu-slot span {
+      color: var(--muted);
+      font-size: 0.82rem;
+      line-height: 1.45;
+    }
+
+    .gpu-slot.busy {
+      background: linear-gradient(180deg, rgba(30, 107, 92, 0.12), rgba(255, 255, 255, 0.95));
+    }
+
+    .gpu-slot.free {
+      background: linear-gradient(180deg, rgba(74, 124, 89, 0.09), rgba(255, 255, 255, 0.95));
+    }
+
+    .meta-row,
+    .record-grid {
+      display: grid;
+      gap: 10px;
+    }
+
+    .meta-row {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .meta-box {
+      padding: 14px;
+    }
+
+    .meta-box span,
+    .meta-box strong {
+      display: block;
+    }
+
+    .meta-box span {
+      color: var(--muted);
+      font-size: 0.8rem;
+    }
+
+    .meta-box strong {
+      margin-top: 6px;
+      font-size: 1.05rem;
+    }
+
+    form,
+    .record-grid {
+      display: grid;
+      gap: 12px;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    label {
+      display: grid;
+      gap: 6px;
+      font-size: 0.9rem;
+      font-weight: 600;
+    }
+
+    input,
+    select,
+    textarea {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 12px;
+      border: 1px solid rgba(100, 79, 51, 0.2);
+      background: rgba(255, 255, 255, 0.95);
+      color: var(--text);
+    }
+
+    textarea {
+      min-height: 96px;
+      resize: vertical;
+    }
+
+    button {
+      border: 0;
+      border-radius: 999px;
+      padding: 11px 16px;
+      cursor: pointer;
+      transition: transform 140ms ease, opacity 140ms ease;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+    }
+
+    button:disabled {
+      cursor: wait;
+      opacity: 0.7;
+      transform: none;
+    }
+
+    .primary {
+      color: #fff;
+      background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+    }
+
+    .secondary {
+      color: var(--text);
+      background: rgba(118, 100, 77, 0.12);
+    }
+
+    .danger-btn {
+      color: #fff;
+      background: linear-gradient(135deg, #bf4b45, #8f2a25);
+    }
+
+    .record-list {
+      display: grid;
+      gap: 12px;
+    }
+
+    .record-card,
+    .table-card {
+      padding: 16px;
+    }
+
+    .record-meta {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .record-meta div {
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: rgba(244, 242, 234, 0.82);
+    }
+
+    .record-meta span,
+    .record-meta strong {
+      display: block;
+    }
+
+    .record-meta span {
+      color: var(--muted);
+      font-size: 0.78rem;
+    }
+
+    .record-meta strong {
+      margin-top: 6px;
+      font-size: 0.92rem;
+    }
+
+    .message {
+      margin-top: 8px;
+      min-height: 22px;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .message.error {
+      color: var(--danger);
+    }
+
+    .message.success {
+      color: var(--ok);
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 900px;
+    }
+
+    th,
+    td {
+      padding: 14px 12px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+      font-size: 0.92rem;
+    }
+
+    th {
+      color: var(--muted);
+      font-size: 0.84rem;
+    }
+
+    .empty-state {
+      padding: 24px;
+      text-align: center;
+      color: var(--muted);
+      border: 1px dashed rgba(100, 79, 51, 0.24);
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.52);
+    }
+
+    @media (max-width: 1024px) {
+      .metrics,
+      .workspace,
+      .server-grid,
+      .meta-row,
+      .record-meta,
+      .form-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .hero-top,
+      .section-heading,
+      .server-head,
+      .record-head,
+      .toolbar,
+      .button-row,
+      .inline-actions {
+        flex-direction: column;
+        align-items: stretch;
+      }
+    }
+
+    @media (max-width: 720px) {
+      .shell {
+        width: min(100% - 20px, 1240px);
+        margin-top: 10px;
+      }
+
+      .hero,
+      .panel,
+      .server-card,
+      .metric-card {
+        padding: 18px;
+      }
+
+      .gpu-track {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header class="hero">
+      <div class="hero-top">
+        <div>
+          <p class="eyebrow">Server Usage Maintenance</p>
+          <h1>服务器使用维护</h1>
+          <details class="usage-guide">
+            <summary>使用规范（点击展开）</summary>
+            <ol>
+              <li>所有使用申请均需填写真实使用人、项目名、开始时间和预计结束时间。</li>
+              <li>提交后先进入审核列表，只有管理员确认后才会纳入占用统计。</li>
+              <li>同一设备同一时间段不可重复预约，冲突申请会被系统拒绝。</li>
+              <li>任务结束后请及时点击结束任务，避免影响后续预约与资源分配。</li>
+              <li>预约计划变更时请及时取消或修改，保证列表状态和实际一致。</li>
+              <li>禁止代填、虚报占用卡数或长期占用不释放，违者按实验室规范处理。</li>
+            </ol>
+          </details>
+        </div>
+        <aside class="stamp">
+          <strong>系统摘要</strong>
+          <span id="summary-updated">更新时间：加载中</span>
+          <span id="summary-active">当前任务：0 条</span>
+          <span id="summary-utilization">综合占用：0%</span>
+        </aside>
+      </div>
+      <div class="metrics">
+        <article class="metric-card">
+          <div class="metric-label">服务器数量</div>
+          <div class="metric-value" id="metric-servers">0</div>
+          <div class="metric-note">当前固定为 4 卡与 2 卡服务器</div>
+        </article>
+        <article class="metric-card">
+          <div class="metric-label">总 GPU 数</div>
+          <div class="metric-value" id="metric-total">0</div>
+          <div class="metric-note">自动汇总所有服务器</div>
+        </article>
+        <article class="metric-card">
+          <div class="metric-label">已占用 GPU</div>
+          <div class="metric-value" id="metric-busy">0</div>
+          <div class="metric-note">按当前未结束任务计算</div>
+        </article>
+        <article class="metric-card">
+          <div class="metric-label">空闲 GPU</div>
+          <div class="metric-value" id="metric-free">0</div>
+          <div class="metric-note">可用于快速安排新任务</div>
+        </article>
+      </div>
+    </header>
+
+    <main>
+      <section class="section">
+        <div class="section-heading">
+          <div>
+            <h2>服务器状态</h2>
+            <p>每张卡位会按照当前未结束的记录自动分配展示。</p>
+          </div>
+          <button class="secondary" type="button" id="refresh-button">刷新数据</button>
+        </div>
+        <div class="server-grid" id="server-grid"></div>
+      </section>
+
+      <section class="section workspace">
+        <aside class="panel">
+          <div class="section-heading">
+            <div>
+              <h2 id="form-title">新增占用记录</h2>
+              <p>新增后会进入审核列表，审核通过后才会纳入占用情况。</p>
+            </div>
+          </div>
+          <form id="record-form">
+            <input type="hidden" id="record-id">
+            <div class="form-grid">
+              <label for="server-id">
+                服务器
+                <select id="server-id" required></select>
+              </label>
+              <label for="gpu-count">
+                占用卡数
+                <input id="gpu-count" type="number" min="1" required>
+              </label>
+              <label for="user-name">
+                使用人
+                <input id="user-name" type="text" required placeholder="例如：Alice">
+              </label>
+              <label for="project-name">
+                项目名
+                <input id="project-name" type="text" required placeholder="例如：多模态训练">
+              </label>
+              <label for="start-time">
+                开始时间
+                <input id="start-time" type="datetime-local" required>
+              </label>
+              <label for="expected-end-time">
+                预计结束时间
+                <input id="expected-end-time" type="datetime-local">
+              </label>
+            </div>
+            <input id="actual-end-time" type="hidden" value="">
+            <label for="note">
+              备注
+              <textarea id="note" placeholder="可写实验说明、优先级、提醒事项"></textarea>
+            </label>
+            <div class="button-row">
+              <button class="primary" type="submit" id="submit-button">保存记录</button>
+              <button class="secondary" type="button" id="cancel-edit-button">清空表单</button>
+            </div>
+            <div class="message" id="form-message"></div>
+          </form>
+        </aside>
+
+        <section class="panel">
+          <div class="section-heading">
+            <div>
+              <h2>当前占用</h2>
+              <p>可以直接编辑、结束任务或删除错误记录。</p>
+            </div>
+          </div>
+          <div class="record-list" id="active-records"></div>
+
+          <div class="section" style="margin-top: 16px;">
+            <div class="section-heading">
+              <div>
+                <h2>审核列表</h2>
+                <p>管理员确认后，记录才会生效。</p>
+              </div>
+            </div>
+            <div class="record-list" id="pending-records"></div>
+          </div>
+
+          <div class="section" style="margin-top: 16px;">
+            <div class="section-heading">
+              <div>
+                <h2>预约列表</h2>
+                <p>已审核但尚未到开始时间的预约。</p>
+              </div>
+            </div>
+            <div class="record-list" id="reservation-records"></div>
+          </div>
+        </section>
+      </section>
+
+      <section class="section">
+        <div class="section-heading">
+          <div>
+            <h2>历史记录</h2>
+            <p>默认展示最近 100 条已结束记录。</p>
+          </div>
+          <button class="secondary" type="button" id="download-txt-button">下载 TXT</button>
+        </div>
+        <div class="panel table-card">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>服务器</th>
+                  <th>使用人</th>
+                  <th>项目</th>
+                  <th>占用卡数</th>
+                  <th>开始时间</th>
+                  <th>预计结束</th>
+                  <th>实际结束</th>
+                  <th>备注</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="history-table"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const state = {
+      servers: [],
+      dashboard: null,
+      editingRecordId: null,
+      loading: false
+    };
+
+    const elements = {
+      serverGrid: document.getElementById("server-grid"),
+      activeRecords: document.getElementById("active-records"),
+      pendingRecords: document.getElementById("pending-records"),
+      reservationRecords: document.getElementById("reservation-records"),
+      historyTable: document.getElementById("history-table"),
+      form: document.getElementById("record-form"),
+      formTitle: document.getElementById("form-title"),
+      submitButton: document.getElementById("submit-button"),
+      cancelEditButton: document.getElementById("cancel-edit-button"),
+      refreshButton: document.getElementById("refresh-button"),
+      downloadTxtButton: document.getElementById("download-txt-button"),
+      formMessage: document.getElementById("form-message"),
+      recordId: document.getElementById("record-id"),
+      serverId: document.getElementById("server-id"),
+      userName: document.getElementById("user-name"),
+      projectName: document.getElementById("project-name"),
+      gpuCount: document.getElementById("gpu-count"),
+      startTime: document.getElementById("start-time"),
+      expectedEndTime: document.getElementById("expected-end-time"),
+      actualEndTime: document.getElementById("actual-end-time"),
+      note: document.getElementById("note"),
+      summaryUpdated: document.getElementById("summary-updated"),
+      summaryActive: document.getElementById("summary-active"),
+      summaryUtilization: document.getElementById("summary-utilization"),
+      metricServers: document.getElementById("metric-servers"),
+      metricTotal: document.getElementById("metric-total"),
+      metricBusy: document.getElementById("metric-busy"),
+      metricFree: document.getElementById("metric-free")
+    };
+
+    function formatInputDate(value) {
+      if (!value) return "";
+      return value.replace(" ", "T").slice(0, 16);
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
+    function setFormMessage(message, type = "") {
+      elements.formMessage.textContent = message;
+      elements.formMessage.className = type ? `message ${type}` : "message";
+    }
+
+    function setLoading(isLoading) {
+      state.loading = isLoading;
+      elements.submitButton.disabled = isLoading;
+      elements.refreshButton.disabled = isLoading;
+      elements.downloadTxtButton.disabled = isLoading;
+    }
+
+    async function api(path, options = {}) {
+      const response = await fetch(path, {
+        headers: {
+          "Content-Type": "application/json"
+        },
+        ...options
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "请求失败");
+      }
+      return data;
+    }
+
+    function renderServerOptions() {
+      elements.serverId.innerHTML = state.servers
+        .map((server) => `<option value="${server.id}">${escapeHtml(server.name)} · ${server.total_gpus} 卡</option>`)
+        .join("");
+    }
+
+    function getServerBadge(utilization) {
+      if (utilization >= 100) {
+        return { text: "已满载", className: "badge badge-danger" };
+      }
+      if (utilization >= 75) {
+        return { text: "高占用", className: "badge badge-warn" };
+      }
+      return { text: "可安排", className: "badge badge-ok" };
+    }
+
+    function getStatusMeta(status) {
+      if (status === "pending") {
+        return { text: "待审核", className: "status-pill ending" };
+      }
+      if (status === "overtime") {
+        return { text: "已超时", className: "status-pill overtime" };
+      }
+      if (status === "completed") {
+        return { text: "已结束", className: "status-pill completed" };
+      }
+      if (status === "ending") {
+        return { text: "即将结束", className: "status-pill ending" };
+      }
+      return { text: "运行中", className: "status-pill running" };
+    }
+
+    function renderSummary() {
+      const { summary, updated_at } = state.dashboard;
+      elements.summaryUpdated.textContent = `更新时间：${updated_at}`;
+      elements.summaryActive.textContent = `当前任务：${summary.active_count} 条`;
+      elements.summaryUtilization.textContent = `综合占用：${summary.utilization}%`;
+      elements.metricServers.textContent = summary.server_count;
+      elements.metricTotal.textContent = summary.total_gpus;
+      elements.metricBusy.textContent = summary.busy_gpus;
+      elements.metricFree.textContent = summary.free_gpus;
+    }
+
+    function renderServers() {
+      if (!state.dashboard.servers.length) {
+        elements.serverGrid.innerHTML = `<div class="empty-state">还没有服务器配置。</div>`;
+        return;
+      }
+
+      elements.serverGrid.innerHTML = state.dashboard.servers.map((server) => {
+        const badge = getServerBadge(server.utilization);
+        return `
+          <article class="server-card">
+            <div class="server-head">
+              <div>
+                <h3>${escapeHtml(server.name)}</h3>
+                <p>${escapeHtml(server.location)} · 总计 ${server.total_gpus} 张 GPU</p>
+              </div>
+              <span class="${badge.className}">${badge.text}</span>
+            </div>
+            <div class="gpu-track" style="--gpu-count: ${server.total_gpus};">
+              ${server.slots.map((slot) => `
+                <div class="gpu-slot ${slot.status}">
+                  <strong>${escapeHtml(slot.label)}</strong>
+                  <span>${escapeHtml(slot.user_name)}</span>
+                  <span>${escapeHtml(slot.project_name)}</span>
+                </div>
+              `).join("")}
+            </div>
+            <div class="meta-row">
+              <div class="meta-box">
+                <span>已占用</span>
+                <strong>${server.busy_gpus} 卡</strong>
+              </div>
+              <div class="meta-box">
+                <span>空闲</span>
+                <strong>${server.free_gpus} 卡</strong>
+              </div>
+              <div class="meta-box">
+                <span>占用率</span>
+                <strong>${server.utilization}%</strong>
+              </div>
+            </div>
+          </article>
+        `;
+      }).join("");
+    }
+
+    function renderActiveRecords() {
+      const active = state.dashboard.active_records;
+      if (!active.length) {
+        elements.activeRecords.innerHTML = `<div class="empty-state">当前没有运行中的任务，可以直接新增一条占用记录。</div>`;
+        return;
+      }
+
+      elements.activeRecords.innerHTML = active.map((record) => {
+        const status = getStatusMeta(record.status);
+        return `
+          <article class="record-card">
+            <div class="record-head">
+              <div>
+                <h3>${escapeHtml(record.user_name)} · ${escapeHtml(record.project_name)}</h3>
+                <p>${escapeHtml(record.server_name)} · ${escapeHtml(record.note || "无备注")}</p>
+              </div>
+              <span class="${status.className}">${status.text}</span>
+            </div>
+            <div class="record-meta">
+              <div>
+                <span>占用卡数</span>
+                <strong>${record.gpu_count} 卡</strong>
+              </div>
+              <div>
+                <span>开始时间</span>
+                <strong>${escapeHtml(record.start_time)}</strong>
+              </div>
+              <div>
+                <span>预计结束</span>
+                <strong>${escapeHtml(record.expected_end_time || "未填写")}</strong>
+              </div>
+              <div>
+                <span>最后更新</span>
+                <strong>${escapeHtml(record.updated_at)}</strong>
+              </div>
+            </div>
+            <div class="inline-actions" style="margin-top: 14px;">
+              <button class="secondary" type="button" data-action="edit" data-id="${record.id}">编辑</button>
+              <button class="primary" type="button" data-action="complete" data-id="${record.id}">结束任务</button>
+              <button class="danger-btn" type="button" data-action="delete" data-id="${record.id}">删除</button>
+            </div>
+          </article>
+        `;
+      }).join("");
+    }
+
+    function renderPendingRecords() {
+      const pending = state.dashboard.pending_records || [];
+      if (!pending.length) {
+        elements.pendingRecords.innerHTML = `<div class="empty-state">当前没有待审核申请。</div>`;
+        return;
+      }
+
+      elements.pendingRecords.innerHTML = pending.map((record) => `
+        <article class="record-card">
+          <div class="record-head">
+            <div>
+              <h3>${escapeHtml(record.user_name)} · ${escapeHtml(record.project_name)}</h3>
+              <p>${escapeHtml(record.server_name)} · ${escapeHtml(record.start_time)} ~ ${escapeHtml(record.expected_end_time || "未填写")}</p>
+            </div>
+            <span class="status-pill ending">待审核</span>
+          </div>
+          <div class="record-meta">
+            <div>
+              <span>占用卡数</span>
+              <strong>${record.gpu_count} 卡</strong>
+            </div>
+            <div>
+              <span>申请时间</span>
+              <strong>${escapeHtml(record.created_at)}</strong>
+            </div>
+            <div>
+              <span>备注</span>
+              <strong>${escapeHtml(record.note || "无")}</strong>
+            </div>
+            <div>
+              <span>状态</span>
+              <strong>等待管理员审核</strong>
+            </div>
+          </div>
+          <div class="inline-actions" style="margin-top: 14px;">
+            <button class="primary" type="button" data-action="approve" data-id="${record.id}">管理员确认</button>
+            <button class="secondary" type="button" data-action="edit" data-id="${record.id}">编辑</button>
+            <button class="danger-btn" type="button" data-action="delete" data-id="${record.id}">删除</button>
+          </div>
+        </article>
+      `).join("");
+    }
+
+    function renderReservationRecords() {
+      const reservations = state.dashboard.reservation_records || [];
+      if (!reservations.length) {
+        elements.reservationRecords.innerHTML = `<div class="empty-state">当前没有已审核预约。</div>`;
+        return;
+      }
+
+      elements.reservationRecords.innerHTML = reservations.map((record) => `
+        <article class="record-card">
+          <div class="record-head">
+            <div>
+              <h3>${escapeHtml(record.user_name)} · ${escapeHtml(record.project_name)}</h3>
+              <p>${escapeHtml(record.server_name)} · 预约时段 ${escapeHtml(record.start_time)} ~ ${escapeHtml(record.expected_end_time || "未填写")}</p>
+            </div>
+            <span class="status-pill running">已预约</span>
+          </div>
+          <div class="record-meta">
+            <div>
+              <span>占用卡数</span>
+              <strong>${record.gpu_count} 卡</strong>
+            </div>
+            <div>
+              <span>审核人</span>
+              <strong>${escapeHtml(record.approved_by || "-")}</strong>
+            </div>
+            <div>
+              <span>审核时间</span>
+              <strong>${escapeHtml(record.approved_at || "-")}</strong>
+            </div>
+            <div>
+              <span>备注</span>
+              <strong>${escapeHtml(record.note || "无")}</strong>
+            </div>
+          </div>
+          <div class="inline-actions" style="margin-top: 14px;">
+            <button class="danger-btn" type="button" data-action="delete" data-id="${record.id}">取消预约</button>
+          </div>
+        </article>
+      `).join("");
+    }
+
+    function renderHistory() {
+      const rows = state.dashboard.history_records;
+      if (!rows.length) {
+        elements.historyTable.innerHTML = `<tr><td colspan="9"><div class="empty-state">还没有历史记录。</div></td></tr>`;
+        return;
+      }
+
+      elements.historyTable.innerHTML = rows.map((record) => `
+        <tr>
+          <td>${escapeHtml(record.server_name)}</td>
+          <td>${escapeHtml(record.user_name)}</td>
+          <td>${escapeHtml(record.project_name)}</td>
+          <td>${record.gpu_count} 卡</td>
+          <td>${escapeHtml(record.start_time)}</td>
+          <td>${escapeHtml(record.expected_end_time || "未填写")}</td>
+          <td>${escapeHtml(record.actual_end_time || "-")}</td>
+          <td>${escapeHtml(record.note || "无备注")}</td>
+          <td>
+            <div class="inline-actions">
+              <button class="secondary" type="button" data-action="edit" data-id="${record.id}">编辑</button>
+              <button class="danger-btn" type="button" data-action="delete" data-id="${record.id}">删除</button>
+            </div>
+          </td>
+        </tr>
+      `).join("");
+    }
+
+    async function loadServers() {
+      const data = await api("/api/servers");
+      state.servers = data.servers;
+      renderServerOptions();
+    }
+
+    async function loadDashboard(showSuccessMessage = false) {
+      setLoading(true);
+      try {
+        state.dashboard = await api("/api/dashboard");
+        renderSummary();
+        renderServers();
+        renderActiveRecords();
+        renderPendingRecords();
+        renderReservationRecords();
+        renderHistory();
+        if (showSuccessMessage) {
+          setFormMessage("数据已刷新。", "success");
+        }
+      } catch (error) {
+        setFormMessage(error.message, "error");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    function resetForm() {
+      state.editingRecordId = null;
+      elements.form.reset();
+      elements.recordId.value = "";
+      elements.formTitle.textContent = "新增占用记录";
+      elements.submitButton.textContent = "保存记录";
+      elements.actualEndTime.value = "";
+      if (state.servers[0]) {
+        elements.serverId.value = String(state.servers[0].id);
+      }
+      setFormMessage("");
+    }
+
+    async function startEdit(recordId) {
+      try {
+        const data = await api(`/api/usages/${recordId}`);
+        const record = data.record;
+        state.editingRecordId = record.id;
+        elements.recordId.value = record.id;
+        elements.serverId.value = String(record.server_id);
+        elements.userName.value = record.user_name;
+        elements.projectName.value = record.project_name;
+        elements.gpuCount.value = record.gpu_count;
+        elements.startTime.value = formatInputDate(record.start_time);
+        elements.expectedEndTime.value = formatInputDate(record.expected_end_time);
+        elements.actualEndTime.value = formatInputDate(record.actual_end_time);
+        elements.note.value = record.note || "";
+        elements.formTitle.textContent = `编辑记录 #${record.id}`;
+        elements.submitButton.textContent = "更新记录";
+        setFormMessage("已载入记录，可以修改后保存。", "success");
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      } catch (error) {
+        setFormMessage(error.message, "error");
+      }
+    }
+
+    async function submitForm(event) {
+      event.preventDefault();
+      setLoading(true);
+      setFormMessage("");
+
+      const payload = {
+        server_id: Number(elements.serverId.value),
+        user_name: elements.userName.value.trim(),
+        project_name: elements.projectName.value.trim(),
+        gpu_count: Number(elements.gpuCount.value),
+        start_time: elements.startTime.value,
+        expected_end_time: elements.expectedEndTime.value,
+        actual_end_time: elements.actualEndTime.value,
+        note: elements.note.value.trim()
+      };
+
+      try {
+        if (state.editingRecordId) {
+          await api(`/api/usages/${state.editingRecordId}`, {
+            method: "PUT",
+            body: JSON.stringify(payload)
+          });
+          setFormMessage("记录已更新。", "success");
+        } else {
+          const created = await api("/api/usages", {
+            method: "POST",
+            body: JSON.stringify(payload)
+          });
+          setFormMessage(created.message || "申请已提交，等待审核。", "success");
+        }
+        await loadDashboard();
+        resetForm();
+      } catch (error) {
+        setFormMessage(error.message, "error");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    async function completeRecord(recordId) {
+      const confirmed = window.confirm("确认将这条占用记录标记为已结束吗？");
+      if (!confirmed) return;
+      try {
+        await api(`/api/usages/${recordId}/complete`, {
+          method: "POST",
+          body: JSON.stringify({})
+        });
+        if (state.editingRecordId === Number(recordId)) {
+          resetForm();
+        }
+        setFormMessage("记录已结束。", "success");
+        await loadDashboard();
+      } catch (error) {
+        setFormMessage(error.message, "error");
+      }
+    }
+
+    async function deleteRecord(recordId) {
+      const confirmed = window.confirm("确认删除这条记录吗？删除后无法恢复。");
+      if (!confirmed) return;
+      try {
+        await api(`/api/usages/${recordId}`, {
+          method: "DELETE"
+        });
+        if (state.editingRecordId === Number(recordId)) {
+          resetForm();
+        }
+        setFormMessage("记录已删除。", "success");
+        await loadDashboard();
+      } catch (error) {
+        setFormMessage(error.message, "error");
+      }
+    }
+
+    async function approveRecord(recordId) {
+      const adminUser = window.prompt("请输入管理员账号");
+      if (adminUser === null) return;
+      const adminPassword = window.prompt("请输入管理员密码");
+      if (adminPassword === null) return;
+
+      try {
+        await api(`/api/usages/${recordId}/approve`, {
+          method: "POST",
+          body: JSON.stringify({
+            admin_user: adminUser.trim(),
+            admin_password: adminPassword
+          })
+        });
+        setFormMessage("审核通过，记录已生效。", "success");
+        await loadDashboard();
+      } catch (error) {
+        setFormMessage(error.message, "error");
+      }
+    }
+
+    function handleActionClick(event) {
+      const button = event.target.closest("button[data-action]");
+      if (!button) return;
+      const recordId = Number(button.dataset.id);
+      const action = button.dataset.action;
+
+      if (action === "edit") {
+        startEdit(recordId);
+        return;
+      }
+      if (action === "complete") {
+        completeRecord(recordId);
+        return;
+      }
+      if (action === "approve") {
+        approveRecord(recordId);
+        return;
+      }
+      if (action === "delete") {
+        deleteRecord(recordId);
+      }
+    }
+
+    async function init() {
+      try {
+        await loadServers();
+        resetForm();
+        await loadDashboard();
+      } catch (error) {
+        setFormMessage(error.message, "error");
+      }
+    }
+
+    elements.form.addEventListener("submit", submitForm);
+    elements.cancelEditButton.addEventListener("click", resetForm);
+    elements.refreshButton.addEventListener("click", () => loadDashboard(true));
+    elements.downloadTxtButton.addEventListener("click", () => {
+      window.location.href = "/api/usages/export.txt";
+    });
+    elements.activeRecords.addEventListener("click", handleActionClick);
+    elements.pendingRecords.addEventListener("click", handleActionClick);
+    elements.reservationRecords.addEventListener("click", handleActionClick);
+    elements.historyTable.addEventListener("click", handleActionClick);
+
+    init();
+  </script>
+</body>
+</html>
