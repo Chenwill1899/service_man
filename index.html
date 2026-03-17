@@ -525,6 +525,42 @@
       background: rgba(255, 255, 255, 0.52);
     }
 
+    .modal[hidden] {
+      display: none;
+    }
+
+    .modal {
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      display: grid;
+      place-items: center;
+      padding: 20px;
+      background: rgba(45, 36, 24, 0.34);
+      backdrop-filter: blur(6px);
+    }
+
+    .modal-card {
+      width: min(420px, 100%);
+      padding: 24px;
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      background: rgba(255, 253, 248, 0.98);
+      box-shadow: var(--shadow);
+    }
+
+    .modal-card h3 {
+      margin: 0;
+      font-size: 1.3rem;
+      letter-spacing: -0.03em;
+    }
+
+    .modal-card p {
+      margin: 12px 0 18px;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
     @media (max-width: 1024px) {
       .metrics,
       .workspace,
@@ -741,6 +777,14 @@
     </main>
   </div>
 
+  <div class="modal" id="notice-modal" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="notice-title">
+      <h3 id="notice-title">申请已提交</h3>
+      <p>请联系管理员完成审核，审核通过后记录才会正式生效。</p>
+      <button class="primary" type="button" id="notice-close-button">关闭</button>
+    </div>
+  </div>
+
   <script>
     const state = {
       servers: [],
@@ -762,6 +806,8 @@
       refreshButton: document.getElementById("refresh-button"),
       downloadTxtButton: document.getElementById("download-txt-button"),
       logoutButton: document.getElementById("logout-button"),
+      noticeModal: document.getElementById("notice-modal"),
+      noticeCloseButton: document.getElementById("notice-close-button"),
       formMessage: document.getElementById("form-message"),
       recordId: document.getElementById("record-id"),
       serverId: document.getElementById("server-id"),
@@ -798,6 +844,15 @@
     function setFormMessage(message, type = "") {
       elements.formMessage.textContent = message;
       elements.formMessage.className = type ? `message ${type}` : "message";
+    }
+
+    function openNoticeModal() {
+      elements.noticeModal.hidden = false;
+      elements.noticeCloseButton.focus();
+    }
+
+    function closeNoticeModal() {
+      elements.noticeModal.hidden = true;
     }
 
     function setLoading(isLoading) {
@@ -1165,6 +1220,7 @@
             body: JSON.stringify(payload)
           });
           setFormMessage(created.message || "申请已提交，等待审核。", "success");
+          openNoticeModal();
         }
         await loadDashboard();
         resetForm();
@@ -1267,6 +1323,17 @@
     elements.form.addEventListener("submit", submitForm);
     elements.cancelEditButton.addEventListener("click", resetForm);
     elements.refreshButton.addEventListener("click", () => loadDashboard(true));
+    elements.noticeCloseButton.addEventListener("click", closeNoticeModal);
+    elements.noticeModal.addEventListener("click", (event) => {
+      if (event.target === elements.noticeModal) {
+        closeNoticeModal();
+      }
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && !elements.noticeModal.hidden) {
+        closeNoticeModal();
+      }
+    });
     elements.logoutButton.addEventListener("click", async () => {
       try {
         await api("/api/logout", {

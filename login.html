@@ -45,14 +45,9 @@
     }
 
     .page {
-      width: min(1080px, 100%);
-      display: grid;
-      grid-template-columns: 1.2fr 0.9fr;
-      gap: 22px;
-      align-items: stretch;
+      width: min(460px, 100%);
     }
 
-    .hero,
     .login-card {
       border: 1px solid var(--line);
       border-radius: var(--radius-xl);
@@ -60,27 +55,6 @@
       box-shadow: var(--shadow);
       backdrop-filter: blur(10px);
       overflow: hidden;
-    }
-
-    .hero {
-      position: relative;
-      padding: 34px;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      min-height: 560px;
-    }
-
-    .hero::after {
-      content: "";
-      position: absolute;
-      right: -56px;
-      bottom: -96px;
-      width: 280px;
-      height: 280px;
-      border-radius: 999px;
-      background: radial-gradient(circle, rgba(30, 107, 92, 0.2), transparent 70%);
-      pointer-events: none;
     }
 
     .eyebrow {
@@ -94,87 +68,15 @@
 
     h1 {
       margin: 0;
-      font-size: clamp(2.6rem, 5vw, 4.6rem);
-      line-height: 0.98;
+      font-size: clamp(2.2rem, 5vw, 3rem);
+      line-height: 1.02;
       letter-spacing: -0.05em;
-    }
-
-    .lead {
-      margin: 18px 0 0;
-      max-width: 620px;
-      color: var(--muted);
-      line-height: 1.75;
-      font-size: 1rem;
-    }
-
-    .highlights {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 14px;
-      margin-top: 28px;
-    }
-
-    .highlight {
-      padding: 16px;
-      border-radius: 18px;
-      border: 1px solid rgba(30, 107, 92, 0.12);
-      background: rgba(255, 255, 255, 0.7);
-    }
-
-    .highlight strong,
-    .highlight span {
-      display: block;
-    }
-
-    .highlight strong {
-      font-size: 1.3rem;
-      margin-bottom: 8px;
-    }
-
-    .highlight span {
-      color: var(--muted);
-      line-height: 1.6;
-      font-size: 0.92rem;
-    }
-
-    .hero-footer {
-      display: flex;
-      justify-content: space-between;
-      gap: 18px;
-      align-items: end;
-      padding-top: 26px;
-    }
-
-    .hero-footer p {
-      margin: 0;
-      color: var(--muted);
-      line-height: 1.7;
-      max-width: 420px;
-    }
-
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 10px 14px;
-      border-radius: 999px;
-      background: rgba(30, 107, 92, 0.1);
-      color: var(--accent-strong);
-      font-size: 0.88rem;
-      font-weight: 700;
-      white-space: nowrap;
     }
 
     .login-card {
       padding: 28px;
       display: grid;
       align-content: center;
-    }
-
-    .login-card h2 {
-      margin: 0;
-      font-size: 1.8rem;
-      letter-spacing: -0.04em;
     }
 
     .login-card p {
@@ -251,62 +153,15 @@
       color: var(--accent);
     }
 
-    @media (max-width: 920px) {
-      .page {
-        grid-template-columns: 1fr;
-      }
-
-      .hero {
-        min-height: auto;
-      }
-
-      .highlights {
-        grid-template-columns: 1fr;
-      }
-
-      .hero-footer {
-        flex-direction: column;
-        align-items: start;
-      }
-    }
   </style>
 </head>
 <body>
   <main class="page">
-    <section class="hero" aria-label="系统介绍">
-      <div>
-        <p class="eyebrow">Server Usage Maintenance</p>
-        <h1>服务器资源一页掌控</h1>
-        <p class="lead">
-          登录后即可进入服务器管理页，查看 GPU 实时占用、提交新申请、审核预约，并维护完整的历史记录。
-          入口改成了应用内登录，不再依赖浏览器弹窗。
-        </p>
-        <div class="highlights">
-          <article class="highlight">
-            <strong>实时状态</strong>
-            <span>按服务器与 GPU 卡位展示当前占用，空闲资源一眼可见。</span>
-          </article>
-          <article class="highlight">
-            <strong>预约审核</strong>
-            <span>新增申请先进入审核列表，管理员确认后自动纳入统计。</span>
-          </article>
-          <article class="highlight">
-            <strong>历史可追溯</strong>
-            <span>保留任务起止时间、占用卡数与备注，支持 TXT 导出。</span>
-          </article>
-        </div>
-      </div>
-
-      <div class="hero-footer">
-        <p>当前登录仅需填写账号，输入正确账号后会直接进入服务器管理页面。</p>
-        <span class="badge">授权账号：ausim</span>
-      </div>
-    </section>
-
     <section class="login-card" aria-label="登录表单">
       <div>
-        <h2>登录系统</h2>
-        <p>请输入授权账号进入服务器管理页面。</p>
+        <p class="eyebrow">Server Usage Maintenance</p>
+        <h1>登录</h1>
+        <p>请输入账号进入服务器管理页面。</p>
       </div>
 
       <form id="login-form">
@@ -314,7 +169,7 @@
           账号
           <input id="username" name="username" type="text" autocomplete="username" placeholder="请输入账号" required>
         </label>
-        <div class="hint">当前仅开放账号 `ausim` 登录。</div>
+        
         <button id="login-button" type="submit">进入服务器管理页</button>
         <div class="message" id="login-message" aria-live="polite"></div>
       </form>
