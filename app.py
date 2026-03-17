@@ -445,16 +445,10 @@ class AppHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
         if parsed.path == "/":
-            if self.is_authenticated():
-                self.redirect("/app")
-            else:
-                self.redirect("/login")
+            self.redirect("/login", cookie=self.clear_session_cookie())
             return
         if parsed.path == "/login":
-            if self.is_authenticated():
-                self.redirect("/app")
-            else:
-                self.serve_login()
+            self.serve_login(cookie=self.clear_session_cookie())
             return
         if parsed.path == "/app":
             if not self.ensure_authenticated():
@@ -775,12 +769,14 @@ class AppHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(content)
 
-    def serve_login(self) -> None:
+    def serve_login(self, cookie: str | None = None) -> None:
         if not LOGIN_PATH.exists():
             self.write_error_json(HTTPStatus.NOT_FOUND, "登录页不存在")
             return
         content = LOGIN_PATH.read_bytes()
         self.send_response(HTTPStatus.OK)
+        if cookie:
+            self.send_header("Set-Cookie", cookie)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Content-Length", str(len(content)))
         self.end_headers()
@@ -864,8 +860,10 @@ class AppHandler(BaseHTTPRequestHandler):
                 return value or None
         return None
 
-    def redirect(self, location: str) -> None:
+    def redirect(self, location: str, cookie: str | None = None) -> None:
         self.send_response(HTTPStatus.FOUND)
+        if cookie:
+            self.send_header("Set-Cookie", cookie)
         self.send_header("Location", location)
         self.end_headers()
 
