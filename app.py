@@ -166,16 +166,17 @@ def ensure_capacity(conn: sqlite3.Connection, server_id: int, gpu_count: int, ex
         raise ValueError(f"该服务器当前只剩 {free_gpu} 张 GPU")
 
 
-def ensure_no_reservation_conflict(
+def overlapping_reservation_gpu_sum(
     conn: sqlite3.Connection,
     server_id: int,
     start_time: str,
     expected_end_time: str | None,
     exclude_record_id: int | None = None,
-) -> None:
+) -> int:
+    """与 [start_time, expected_end_time] 时段重叠的待审/已审未结束记录所占 GPU 数之和。"""
     end_time = expected_end_time or start_time
     query = """
-        SELECT id
+        SELECT COALESCE(SUM(gpu_count), 0) AS busy
         FROM usage_records
         WHERE server_id = ?
           AND actual_end_time IS NULL
@@ -187,10 +188,31 @@ def ensure_no_reservation_conflict(
     if exclude_record_id is not None:
         query += " AND id != ?"
         params = (server_id, end_time, start_time, exclude_record_id)
+    row = conn.execute(query, params).fetchone()
+    return int(row["busy"])
 
-    conflict = conn.execute(query, params).fetchone()
-    if conflict is not None:
-        raise ValueError("该设备在所选时间段已被预约，请更换时间或服务器")
+
+def ensure_no_reservation_conflict(
+    conn: sqlite3.Connection,
+    server_id: int,
+    gpu_count: int,
+    start_time: str,
+    expected_end_time: str | None,
+    exclude_record_id: int | None = None,
+) -> None:
+    server = conn.execute(
+        "SELECT id, total_gpus FROM servers WHERE id = ?",
+        (server_id,),
+    ).fetchone()
+    if server is None:
+        raise ValueError("服务器不存在")
+    busy = overlapping_reservation_gpu_sum(conn, server_id, start_time, expected_end_time, exclude_record_id)
+    total = int(server["total_gpus"])
+    if busy + gpu_count > total:
+        free = total - busy
+        raise ValueError(
+            f"该时段该设备仅剩 {free} 张 GPU 可预约，请减少占用卡数、更换时间或更换服务器"
+        )
 
 
 def validate_payload(conn: sqlite3.Connection, payload: dict, record_id: int | None = None) -> dict:
@@ -228,7 +250,7 @@ def validate_payload(conn: sqlite3.Connection, payload: dict, record_id: int | N
         raise ValueError("预约必须填写预计结束时间")
 
     if actual_end_time is None:
-        ensure_no_reservation_conflict(conn, server_id, start_time, expected_end_time, record_id)
+        ensure_no_reservation_conflict(conn, server_id, gpu_count, start_time, expected_end_time, record_id)
 
     return {
         "server_id": server_id,
